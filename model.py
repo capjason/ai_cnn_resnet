@@ -45,12 +45,15 @@ class BottleNeck(nn.Module):
 class BabyNet(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.layer0 = self.make_layer(in_channels=3, out_channels=64,stride=2,num_blocks=3) # 32 -> 16
-        self.layer1 = self.make_layer(in_channels=64,out_channels=128,stride=2,num_blocks=4) # 16->8
-        self.layer2 = self.make_layer(in_channels=128,out_channels=256,stride=2,num_blocks=6) # 8->4
-        self.layer3 = self.make_layer(in_channels=256,out_channels=512,stride=2,num_blocks=3) # 4->2
+        self.num_blocks = [3,4,6,3]
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False) # 32 -> 16
+        self.bn = nn.BatchNorm2d(64)
+        self.layer0 = self.make_layer(in_channels=64, out_channels=64,stride=1,num_blocks = self.num_blocks[0]) # 16 -> 16
+        self.layer1 = self.make_layer(in_channels=64,out_channels=128,stride=2,num_blocks = self.num_blocks[0]) # 16->8
+        self.layer2 = self.make_layer(in_channels=128,out_channels=256,stride=2,num_blocks = self.num_blocks[0]) # 8->4
+        self.layer3 = self.make_layer(in_channels=256,out_channels=512,stride=2,num_blocks = self.num_blocks[0]) # 4->2
         self.pool = nn.AdaptiveAvgPool2d((1,1))
-
+        
         self.fc1 = nn.Linear(512, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
@@ -70,6 +73,8 @@ class BabyNet(nn.Module):
 
     
     def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn(x)
         x = self.layer0(x)
         x = self.layer1(x)
         x = self.layer2(x)
