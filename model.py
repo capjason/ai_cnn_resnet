@@ -13,6 +13,7 @@ class BottleNeck(nn.Module):
         self.bn2 = nn.BatchNorm2d(compressed_channels)
         self.conv3 = nn.Conv2d(compressed_channels, out_channels, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.1)
         self.downsample = None
         if in_channels != out_channels or stride != 1:
             self.downsample = nn.Sequential(
@@ -38,25 +39,31 @@ class BottleNeck(nn.Module):
         
         x += identity
         x = F.relu(x)
-        return x
+        return self.dropout(x)
 
 
 
 class BabyNet(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.num_blocks = [3,4,6,3]
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False) # 32 -> 16
-        self.bn = nn.BatchNorm2d(64)
-        self.layer0 = self.make_layer(in_channels=64, out_channels=64,stride=1,num_blocks = self.num_blocks[0]) # 16 -> 16
-        self.layer1 = self.make_layer(in_channels=64,out_channels=128,stride=2,num_blocks = self.num_blocks[0]) # 16->8
-        self.layer2 = self.make_layer(in_channels=128,out_channels=256,stride=2,num_blocks = self.num_blocks[0]) # 8->4
-        self.layer3 = self.make_layer(in_channels=256,out_channels=512,stride=2,num_blocks = self.num_blocks[0]) # 4->2
+        self.num_blocks = [3,6,6,3]
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=7, stride=2, padding=3, bias=False) # 32 -> 16
+        self.bn = nn.BatchNorm2d(16)
+        self.layer0 = self.make_layer(in_channels=16, out_channels=64,stride=2,num_blocks = self.num_blocks[0]) # 16 -> 16
+        self.layer1 = self.make_layer(in_channels=64,out_channels=128,stride=2,num_blocks = self.num_blocks[1]) # 16->8
+        self.layer2 = self.make_layer(in_channels=128,out_channels=256,stride=2,num_blocks = self.num_blocks[2]) # 8->4
+        self.layer3 = self.make_layer(in_channels=256,out_channels=512,stride=1,num_blocks = self.num_blocks[3]) # 4->2
         self.pool = nn.AdaptiveAvgPool2d((1,1))
         
-        self.fc1 = nn.Linear(512, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.fc1 = nn.Linear(512, 128)
+        self.fc2 = nn.Linear(128, 10)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     
     def make_layer(self,in_channels,out_channels,num_blocks,stride):
@@ -82,6 +89,5 @@ class BabyNet(nn.Module):
         x = self.pool(x)
         x = torch.flatten(x, 1) # flatten all dimensions except batch
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.fc2(x)
         return x
